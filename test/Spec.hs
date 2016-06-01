@@ -38,9 +38,6 @@ prop_byteswapTwiceEqualsId (BoxedSwappable a b c d) =
   && c == (bswap (bswap c))
   && d == (bswap (bswap d))     
 
-prop_byteswapArithm :: (Int, Int) -> Bool
-prop_byteswapArithm (x, y) = hostToBE ( x + y) == hostToBE x + hostToBE y
-
 return []
 runTests = $quickCheckAll
 
