@@ -3,13 +3,10 @@
 
 module SHA
     (
-      toChunks
+      HV
     , digest
     ) where
 
-import qualified Data.Vector.Unboxed.Mutable as MV
-import qualified Data.Vector.Unboxed as U
-import           Data.Vector.Unboxed(Vector)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Lazy.Char8 as LC
@@ -17,17 +14,19 @@ import           Data.ByteString (ByteString)
 import           Data.ByteString.Builder
 import           Control.Monad
 import           Control.Monad.ST
-import           Control.Monad.State
 import           Data.Int
 import           Data.Word
-import           Data.Char
 import           Data.Bits
 import           Data.Monoid
+import           Data.Array.Unboxed
+import           Data.Array.Unsafe
+import           Data.Array.ST
 import           Data.List(foldl')
 
+initHs :: [Word32]
 initHs = [
     0x6a09e667 , 0xbb67ae85 , 0x3c6ef372 , 0xa54ff53a
-  , 0x510e527f , 0x9b05688c , 0x1f83d9ab , 0x5be0cd19  ] :: [Word32]
+  , 0x510e527f , 0x9b05688c , 0x1f83d9ab , 0x5be0cd19  ]
 
 initKs :: [Word32]
 initKs = [
@@ -40,17 +39,8 @@ initKs = [
    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2 ]
 
-initKv :: U.Vector Word32
-initKv = U.fromList initKs
-
-pp :: LBS.ByteString -> LBS.ByteString
-pp lbs
-    | len `mod` 64 < 56 = lbs <> LBS.cons 0x80 (LBS.replicate (55 - len) 0x0)  <> encodeInt64Lazy len
-    | len `mod` 64 >= 56 = lbs <> LBS.cons 0x80 (LBS.replicate (119 - len) 0x0) <> encodeInt64Lazy len
-  where len = LBS.length lbs
-
-encodeInt64 :: Int64 -> ByteString
-encodeInt64 x_ = B.pack [w7, w6, w5, w4, w3, w2, w1, w0]
+encodeInt64Helper :: Int64 -> [Word8]
+encodeInt64Helper x_ = [w7, w6, w5, w4, w3, w2, w1, w0]
   where x = x_ * 8
         w7 = fromIntegral $ (x `shiftR` 56) .&. 0xff
         w6 = fromIntegral $ (x `shiftR` 48) .&. 0xff
@@ -61,17 +51,7 @@ encodeInt64 x_ = B.pack [w7, w6, w5, w4, w3, w2, w1, w0]
         w1 = fromIntegral $ (x `shiftR`  8) .&. 0xff
         w0 = fromIntegral $ (x `shiftR`  0) .&. 0xff
 
-encodeInt64Lazy :: Int64 -> LBS.ByteString
-encodeInt64Lazy x_ = LBS.pack [w7, w6, w5, w4, w3, w2, w1, w0]
-  where x = x_ * 8
-        w7 = fromIntegral $ (x `shiftR` 56) .&. 0xff
-        w6 = fromIntegral $ (x `shiftR` 48) .&. 0xff
-        w5 = fromIntegral $ (x `shiftR` 40) .&. 0xff
-        w4 = fromIntegral $ (x `shiftR` 32) .&. 0xff
-        w3 = fromIntegral $ (x `shiftR` 24) .&. 0xff
-        w2 = fromIntegral $ (x `shiftR` 16) .&. 0xff
-        w1 = fromIntegral $ (x `shiftR`  8) .&. 0xff
-        w0 = fromIntegral $ (x `shiftR`  0) .&. 0xff
+encodeInt64     = B.pack . encodeInt64Helper
 
 lastChunk :: Int64 -> ByteString -> [ByteString]
 lastChunk msglen s
@@ -80,20 +60,8 @@ lastChunk msglen s
   where
     len        = B.length s
     encodedLen = encodeInt64 msglen
-    helper s   = [s1, s2]
-      where (s1, s2) = B.splitAt 64 s
-
--- | TODO: re-implement with foldrChunks
-to64BChunks :: Int -> LBS.ByteString -> [ByteString]
-to64BChunks len s
-  | LBS.null s'         = lastChunk (fromIntegral (B.length s2 + len)) s2
-  | otherwise           = s2 : to64BChunks (64+len) s'
-  where
-    (s1, s')  = LBS.splitAt 64 s
-    !s2       = LBS.toStrict s1
-
-toChunks s = to64BChunks 0 s
-{-# INLINE toChunks #-}
+    helper bs   = [s1, s2]
+      where (s1, s2) = B.splitAt 64 bs
 
 data HV = HV  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
@@ -105,16 +73,15 @@ data HV = HV  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
           deriving Eq
 
-fromList :: [Word32] -> HV
-toList   :: HV -> [Word32]
-fromList (a:b:c:d:e:f:g:h:_) = HV a b c d e f g h
-toList (HV a b c d e f g h) = a:b:c:d:e:f:g:[h]
-{-# INLINE initHash #-}
+initHash :: HV
 initHash = fromList initHs
+  where fromList (a:b:c:d:e:f:g:h:_) = HV a b c d e f g h
 
 instance Show HV where
-  show hv@(HV a b c d e f g h) = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList $ hv
+  show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
+    where toList (HV a b c d e f g h) = a:b:c:d:e:f:g:[h]
 
+compression :: HV -> (Word32, Word32) -> HV
 compression (HV a b c d e f g h) (!w, !z) =
     let
       !s1    = (e `rotateR` 6) `xor` (e `rotateR` 11) `xor` (e `rotateR` 25)
@@ -129,28 +96,30 @@ compression (HV a b c d e f g h) (!w, !z) =
 data PI = PI {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32
 
 {-# INLINE readPI #-}
-readPI mv i = liftM4 PI (MV.unsafeRead mv w)
-    (MV.unsafeRead mv x)
-    (MV.unsafeRead mv y)
-    (MV.unsafeRead mv z)
+readPI mv i = liftM4 PI (readArray mv w)
+    (readArray mv x)
+    (readArray mv y)
+    (readArray mv z)
   where !w = i - 16
         !x = i - 15
         !y = i -  7
         !z = i -  2
 
-round2 :: [Word32] -> Vector Word32
+round2 :: [Word32] -> UArray Int Word32
 round2 w16 = runST $ do
-    mv <- flip MV.unsafeGrow 48 =<< U.unsafeThaw (U.fromList w16)
-    accum mv
-    U.unsafeFreeze mv
-    where accum mv = mapM_ go [16..63]
+  iou <- newArray (0, 63) 0 :: ST s (STUArray s Int Word32)
+  mapM_ (uncurry (writeArray iou)) (zip [0..] w16)
+  acc iou
+  unsafeFreeze iou
+    where acc mv = mapM_ go [16..63]
             where go i = readPI mv i >>= \(PI w1 w3 w2 w4) ->
                       let !s0 = (w3 `rotateR`  7) `xor` (w3 `rotateR` 18) `xor` (w3 `shiftR`  3)
                           !s1 = (w4 `rotateR` 17) `xor` (w4 `rotateR` 19) `xor` (w4 `shiftR` 10)
-                      in MV.write mv i (w1 + s0 + w2 + s1)
+                      in writeArray mv i (w1 + s0 + w2 + s1)
                   {-# INLINE go #-}
-          {-# INLINE accum #-}
+          {-# INLINE acc #-}
 
+{-# INLINE fromBS #-}
 fromBS :: ByteString -> [Word32]
 fromBS bs = if B.null s then [] else x : fromBS bs'
     where (!s, !bs') = B.splitAt 4 bs
@@ -158,13 +127,24 @@ fromBS bs = if B.null s then [] else x : fromBS bs'
             where acc r c = r `shiftL` 8 + fromIntegral c
                   acc :: Word32 -> Word8 -> Word32
                   {-# INLINE acc #-}
-{-# INLINE fromBS #-}
 
+{-# INLINE encodeChunk #-}
 encodeChunk :: HV -> ByteString -> HV
 encodeChunk hv@(HV a b c d e f g h) bs = HV (a+a') (b+b') (c+c') (d+d') (e+e') (f+f') (g+g') (h+h')
-  where !r2 = round2 (fromBS bs)
-        (HV a' b' c' d' e' f' g' h') = foldl' compression hv (zip (U.toList r2) initKs)
+  where !r = round2 (fromBS bs)
+        (HV a' b' c' d' e' f' g' h') = foldl' compression hv (zip (elems r) initKs)
 
+{-# NOINLINE digest #-}
 digest :: LBS.ByteString -> HV
-digest = foldl encodeChunk initHash . toChunks
-
+digest = fixTail . LBS.foldlChunks acc (0, 0, mempty, initHash)
+  where acc r@(!n, !k, !w, !hv) s
+          | B.null s               = r
+          | sizeRead  < sizeToRead = (n + fromIntegral sizeRead, k + sizeRead, w <> s1, hv)
+          | sizeRead >= sizeToRead = acc (n + fromIntegral sizeToRead, 0, mempty, encodeChunk hv (w <> s1)) s'
+          where
+            !sizeToRead  = 64 - k
+            (!s1, !s')   = B.splitAt sizeToRead s
+            !sizeRead    = B.length s1
+        fixTail r@(!n, !k, !w, !hv) = foldl' encodeChunk hv (lastChunk n w)
+        acc :: (Int64, Int, ByteString, HV) -> ByteString -> (Int64, Int, ByteString, HV)
+        {-# INLINE acc #-}
