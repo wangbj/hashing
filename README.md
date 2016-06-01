@@ -1,0 +1,2 @@
+# hashing
+Haskell hashing library
