@@ -3,7 +3,7 @@
 
 module Crypto.Hash.SHA256
     (
-      HV
+      SHA256
     , sha256Hash
     , sha256Init
     , sha256Update
@@ -66,7 +66,7 @@ lastChunk msglen s
     helper bs   = [s1, s2]
       where (s1, s2) = B.splitAt 64 bs
 
-data HV = HV  {-# UNPACK #-} !Word32
+data SHA256 = SHA256  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
@@ -76,16 +76,16 @@ data HV = HV  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
           deriving Eq
 
-initHash :: HV
+initHash :: SHA256
 initHash = fromList initHs
-  where fromList (a:b:c:d:e:f:g:h:_) = HV a b c d e f g h
+  where fromList (a:b:c:d:e:f:g:h:_) = SHA256 a b c d e f g h
 
-instance Show HV where
+instance Show SHA256 where
   show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
-    where toList (HV a b c d e f g h) = a:b:c:d:e:f:g:[h]
+    where toList (SHA256 a b c d e f g h) = a:b:c:d:e:f:g:[h]
 
-compression :: HV -> (Word32, Word32) -> HV
-compression (HV a b c d e f g h) (!w, !z) =
+compression :: SHA256 -> (Word32, Word32) -> SHA256
+compression (SHA256 a b c d e f g h) (!w, !z) =
     let
       !s1    = (e `rotateR` 6) `xor` (e `rotateR` 11) `xor` (e `rotateR` 25)
       !ch    = (e .&. f) `xor` (complement e .&. g)
@@ -93,7 +93,7 @@ compression (HV a b c d e f g h) (!w, !z) =
       !s0    = (a `rotateR` 2) `xor` (a `rotateR` 13) `xor` (a `rotateR` 22)
       !maj   = (a .&. b) `xor` (a .&. c) `xor` (b .&. c)
       !temp2 = s0 + maj
-    in HV (temp1 + temp2) a b c (d + temp1) e f g
+    in SHA256 (temp1 + temp2) a b c (d + temp1) e f g
 {-# INLINABLE compression #-}
 
 data PI = PI {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32
@@ -132,20 +132,20 @@ fromBS bs = if B.null s then [] else x : fromBS bs'
                   {-# INLINE acc #-}
 
 {-# INLINE encodeChunk #-}
-encodeChunk :: HV -> ByteString -> HV
-encodeChunk hv@(HV a b c d e f g h) bs = HV (a+a') (b+b') (c+c') (d+d') (e+e') (f+f') (g+g') (h+h')
+encodeChunk :: SHA256 -> ByteString -> SHA256
+encodeChunk hv@(SHA256 a b c d e f g h) bs = SHA256 (a+a') (b+b') (c+c') (d+d') (e+e') (f+f') (g+g') (h+h')
   where !r = round2 (fromBS bs)
-        (HV a' b' c' d' e' f' g' h') = foldl' compression hv (zip (elems r) initKs)
+        (SHA256 a' b' c' d' e' f' g' h') = foldl' compression hv (zip (elems r) initKs)
 
 {-# NOINLINE sha256Hash #-}
-sha256Hash :: LBS.ByteString -> HV
+sha256Hash :: LBS.ByteString -> SHA256
 sha256Hash = sha256Final . LBS.foldlChunks sha256Update sha256Init
 
 data SHA256Ctx = SHA256Ctx {
     totalBytesRead     :: {-# UNPACK #-} !Int64
   , leftOverSize       :: {-# UNPACK #-} !Int
   , leftOver           :: {-# UNPACK #-} !ByteString
-  , hashValue          :: {-# UNPACK #-} !HV
+  , hashValue          :: {-# UNPACK #-} !SHA256
   } deriving Show
 
 sha256Init :: SHA256Ctx
@@ -163,5 +163,6 @@ sha256Update ctx@(SHA256Ctx n k w hv) s
     !sizeRead    = B.length s1
 
 {-# NOINLINE sha256Final #-}
-sha256Final :: SHA256Ctx -> HV
+sha256Final :: SHA256Ctx -> SHA256
 sha256Final ctx@(SHA256Ctx n k w hv) = foldl' encodeChunk hv (lastChunk n w)
+

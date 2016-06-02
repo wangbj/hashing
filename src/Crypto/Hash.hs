@@ -1,5 +1,5 @@
 module Crypto.Hash (
-    HV
+    SHA256
   , sha256Hash
   , sha256Init
   , sha256Update
