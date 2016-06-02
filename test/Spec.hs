@@ -23,6 +23,10 @@ prop_SHA256HashLazyEqualsHashStrict (BoxedLBS lbs) = lhs == rhs
   where lhs = sha256Hash lbs
         rhs = sha256Final . foldl sha256Update sha256Init . LBS.toChunks $ lbs
 
+prop_SHA224HashLazyEqualsHashStrict (BoxedLBS lbs) = lhs == rhs
+  where lhs = sha224Hash lbs
+        rhs = sha224Final . foldl sha224Update sha224Init . LBS.toChunks $ lbs
+
 return []
 runTests = $quickCheckAll
 

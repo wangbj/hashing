@@ -4,10 +4,17 @@
 module Crypto.Hash.SHA256
     (
       SHA256
+    , SHA224
+    , SHA256Ctx
+    , SHA224Ctx
     , sha256Hash
     , sha256Init
     , sha256Update
     , sha256Final
+    , sha224Hash
+    , sha224Init
+    , sha224Update
+    , sha224Final
     ) where
 
 import qualified Data.ByteString as B
@@ -76,13 +83,31 @@ data SHA256 = SHA256  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
           deriving Eq
 
+
+data SHA224 = SHA224  {-# UNPACK #-} !Word32
+              {-# UNPACK #-} !Word32
+              {-# UNPACK #-} !Word32
+              {-# UNPACK #-} !Word32
+              {-# UNPACK #-} !Word32
+              {-# UNPACK #-} !Word32
+              {-# UNPACK #-} !Word32
+          deriving Eq
+
 initHash :: SHA256
 initHash = fromList initHs
+  where fromList (a:b:c:d:e:f:g:h:_) = SHA256 a b c d e f g h
+
+initHash224 :: SHA256
+initHash224 = fromList [0xc1059ed8, 0x367cd507, 0x3070dd17, 0xf70e5939, 0xffc00b31, 0x68581511, 0x64f98fa7, 0xbefa4fa4]
   where fromList (a:b:c:d:e:f:g:h:_) = SHA256 a b c d e f g h
 
 instance Show SHA256 where
   show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
     where toList (SHA256 a b c d e f g h) = a:b:c:d:e:f:g:[h]
+
+instance Show SHA224 where
+  show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
+    where toList (SHA224 a b c d e f g) = a:b:c:d:e:f:[g]
 
 compression :: SHA256 -> (Word32, Word32) -> SHA256
 compression (SHA256 a b c d e f g h) (!w, !z) =
@@ -166,3 +191,14 @@ sha256Update ctx@(SHA256Ctx n k w hv) s
 sha256Final :: SHA256Ctx -> SHA256
 sha256Final ctx@(SHA256Ctx n k w hv) = foldl' encodeChunk hv (lastChunk n w)
 
+type SHA224Ctx = SHA256Ctx
+
+fromSHA256 (SHA256 a b c d e f g _) = SHA224 a b c d e f g
+
+sha224Init   = SHA256Ctx 0 0 B.empty initHash224
+sha224Update = sha256Update
+sha224Final  = fromSHA256 . sha256Final
+
+{-# NOINLINE sha224Hash #-}
+sha224Hash :: LBS.ByteString -> SHA224
+sha224Hash = sha224Final . LBS.foldlChunks sha224Update sha224Init
