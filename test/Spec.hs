@@ -19,6 +19,10 @@ instance Arbitrary BoxedLBS where
     g <- resize (2^10) (listOf arbitrary)
     return $! BoxedLBS (LBS.pack g)
 
+prop_SHA256HashLazyEqualsHashStrict (BoxedLBS lbs) = lhs == rhs
+  where lhs = sha256Hash lbs
+        rhs = sha256Final . foldl sha256Update sha256Init . LBS.toChunks $ lbs
+
 return []
 runTests = $quickCheckAll
 
