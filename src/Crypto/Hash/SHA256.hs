@@ -1,10 +1,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE BangPatterns #-}
 
-module SHA
+module Crypto.Hash.SHA256
     (
       HV
-    , digest
+    , sha256Hash
+    , sha256Init
+    , sha256Update
+    , sha256Final
     ) where
 
 import qualified Data.ByteString as B
@@ -134,17 +137,31 @@ encodeChunk hv@(HV a b c d e f g h) bs = HV (a+a') (b+b') (c+c') (d+d') (e+e') (
   where !r = round2 (fromBS bs)
         (HV a' b' c' d' e' f' g' h') = foldl' compression hv (zip (elems r) initKs)
 
-{-# NOINLINE digest #-}
-digest :: LBS.ByteString -> HV
-digest = fixTail . LBS.foldlChunks acc (0, 0, mempty, initHash)
-  where acc r@(!n, !k, !w, !hv) s
-          | B.null s               = r
-          | sizeRead  < sizeToRead = (n + fromIntegral sizeRead, k + sizeRead, w <> s1, hv)
-          | sizeRead >= sizeToRead = acc (n + fromIntegral sizeToRead, 0, mempty, encodeChunk hv (w <> s1)) s'
-          where
-            !sizeToRead  = 64 - k
-            (!s1, !s')   = B.splitAt sizeToRead s
-            !sizeRead    = B.length s1
-        fixTail r@(!n, !k, !w, !hv) = foldl' encodeChunk hv (lastChunk n w)
-        acc :: (Int64, Int, ByteString, HV) -> ByteString -> (Int64, Int, ByteString, HV)
-        {-# INLINE acc #-}
+{-# NOINLINE sha256Hash #-}
+sha256Hash :: LBS.ByteString -> HV
+sha256Hash = sha256Final . LBS.foldlChunks sha256Update sha256Init
+
+data SHA256Ctx = SHA256Ctx {
+    totalBytesRead     :: {-# UNPACK #-} !Int64
+  , leftOverSize       :: {-# UNPACK #-} !Int
+  , leftOver           :: {-# UNPACK #-} !ByteString
+  , hashValue          :: {-# UNPACK #-} !HV
+  } deriving Show
+
+sha256Init :: SHA256Ctx
+sha256Init = SHA256Ctx 0 0 B.empty initHash
+
+{-# NOINLINE sha256Update #-}
+sha256Update :: SHA256Ctx -> ByteString -> SHA256Ctx
+sha256Update ctx@(SHA256Ctx n k w hv) s
+  | B.null s               = ctx
+  | sizeRead  < sizeToRead = SHA256Ctx (n + fromIntegral sizeRead) (k + sizeRead) (w <> s1) hv
+  | sizeRead >= sizeToRead = sha256Update (SHA256Ctx (n + fromIntegral sizeToRead) 0 mempty (encodeChunk hv (w <> s1))) s'
+  where
+    !sizeToRead  = 64 - k
+    (!s1, !s')   = B.splitAt sizeToRead s
+    !sizeRead    = B.length s1
+
+{-# NOINLINE sha256Final #-}
+sha256Final :: SHA256Ctx -> HV
+sha256Final ctx@(SHA256Ctx n k w hv) = foldl' encodeChunk hv (lastChunk n w)

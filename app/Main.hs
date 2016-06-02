@@ -2,7 +2,7 @@ module Main where
 
 import qualified Data.ByteString.Lazy as LBS
 
-import           SHA
+import           Crypto.Hash
 
 main :: IO ()
-main = LBS.getContents >>= print . digest
+main = LBS.getContents >>= print . sha256Hash

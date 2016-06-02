@@ -15,10 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     SHA
-                     , Endian
-                     , TH
-                     , ByteSwap
+  exposed-modules:     Crypto.Hash
+                     , Crypto.Hash.SHA256
   build-depends:       QuickCheck >= 2.8.1
                      , array >= 0.5.1.0
                      , base >= 4.7 && < 5
