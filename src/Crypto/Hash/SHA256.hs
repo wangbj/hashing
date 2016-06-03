@@ -22,7 +22,6 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString.Lazy.Char8 as LC
 import           Data.ByteString (ByteString)
 import           Data.ByteString.Builder
-import           Control.Monad
 import           Control.Monad.ST
 import           Data.Int
 import           Data.Word
@@ -61,7 +60,7 @@ encodeInt64Helper x_ = [w7, w6, w5, w4, w3, w2, w1, w0]
         w1 = fromIntegral $ (x `shiftR`  8) .&. 0xff
         w0 = fromIntegral $ (x `shiftR`  0) .&. 0xff
 
-encodeInt64     = B.pack . encodeInt64Helper
+encodeInt64 = B.pack . encodeInt64Helper
 
 lastChunk :: Int64 -> ByteString -> [ByteString]
 lastChunk msglen s
@@ -82,7 +81,6 @@ data SHA256 = SHA256  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
           deriving Eq
-
 
 data SHA224 = SHA224  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
@@ -109,58 +107,64 @@ instance Show SHA224 where
   show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
     where toList (SHA224 a b c d e f g) = a:b:c:d:e:f:[g]
 
-compression :: SHA256 -> (Word32, Word32) -> SHA256
-compression (SHA256 a b c d e f g h) (!w, !z) =
+{-# INLINABLE sha256BlockUpdate #-}
+sha256BlockUpdate :: SHA256 -> Word32 -> SHA256
+sha256BlockUpdate (SHA256 a b c d e f g h) w =
     let
       !s1    = (e `rotateR` 6) `xor` (e `rotateR` 11) `xor` (e `rotateR` 25)
       !ch    = (e .&. f) `xor` (complement e .&. g)
-      !temp1 = h + s1 + ch + z + w
+      !temp1 = h + s1 + ch + w
       !s0    = (a `rotateR` 2) `xor` (a `rotateR` 13) `xor` (a `rotateR` 22)
       !maj   = (a .&. b) `xor` (a .&. c) `xor` (b .&. c)
       !temp2 = s0 + maj
     in SHA256 (temp1 + temp2) a b c (d + temp1) e f g
-{-# INLINABLE compression #-}
 
-data PI = PI {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32 {-# UNPACK #-} !Word32
+{-# INLINE readW64 #-}
+readW64 :: ByteString -> Word64
+readW64 = B.foldl' acc 0 . B.take 8
+  where acc x c = x `shiftL` 8 + fromIntegral c
+        acc :: Word64 -> Word8 -> Word64
+        {-# INLINE acc #-}
 
-{-# INLINE readPI #-}
-readPI mv i = liftM4 PI (readArray mv w)
-    (readArray mv x)
-    (readArray mv y)
-    (readArray mv z)
-  where !w = i - 16
-        !x = i - 15
-        !y = i -  7
-        !z = i -  2
-
-round2 :: [Word32] -> UArray Int Word32
-round2 w16 = runST $ do
+prepareBlock :: ByteString -> UArray Int Word32
+prepareBlock s = runST $ do
   iou <- newArray (0, 63) 0 :: ST s (STUArray s Int Word32)
-  mapM_ (uncurry (writeArray iou)) (zip [0..] w16)
-  acc iou
+  let
+    !w1 = readW64 s
+    !w2 = readW64 (B.drop 8 s)
+    !w3 = readW64 (B.drop 16 s)
+    !w4 = readW64 (B.drop 24 s)
+    !w5 = readW64 (B.drop 32 s)
+    !w6 = readW64 (B.drop 40 s)
+    !w7 = readW64 (B.drop 48 s)
+    !w8 = readW64 (B.drop 56 s)
+    write2 k x = writeArray iou (2*k)     (fromIntegral (x `shiftR` 32)) >>
+                 writeArray iou (1+2*k)   (fromIntegral (x .&. 0xffffffff))
+    {-# INLINE write2 #-}
+  write2 0 w1
+  write2 1 w2
+  write2 2 w3
+  write2 3 w4
+  write2 4 w5
+  write2 5 w6
+  write2 6 w7
+  write2 7 w8
+  let go i = readArray iou (i-16) >>= \x1 ->
+        readArray iou (i-15) >>= \x2 ->
+        readArray iou (i- 7) >>= \x3 ->
+        readArray iou (i- 2) >>= \x4 ->
+        let !s0 = (x2 `rotateR`  7) `xor` (x2 `rotateR` 18) `xor` (x2 `shiftR`  3)
+            !s1 = (x4 `rotateR` 17) `xor` (x4 `rotateR` 19) `xor` (x4 `shiftR` 10)
+        in writeArray iou i (x1 + s0 + x3 + s1)
+--      {-# INLINE go #-}
+  mapM_ go [16..63]
   unsafeFreeze iou
-    where acc mv = mapM_ go [16..63]
-            where go i = readPI mv i >>= \(PI w1 w3 w2 w4) ->
-                      let !s0 = (w3 `rotateR`  7) `xor` (w3 `rotateR` 18) `xor` (w3 `shiftR`  3)
-                          !s1 = (w4 `rotateR` 17) `xor` (w4 `rotateR` 19) `xor` (w4 `shiftR` 10)
-                      in writeArray mv i (w1 + s0 + w2 + s1)
-                  {-# INLINE go #-}
-          {-# INLINE acc #-}
-
-{-# INLINE fromBS #-}
-fromBS :: ByteString -> [Word32]
-fromBS bs = if B.null s then [] else x : fromBS bs'
-    where (!s, !bs') = B.splitAt 4 bs
-          !x         = B.foldl' acc 0 s
-            where acc r c = r `shiftL` 8 + fromIntegral c
-                  acc :: Word32 -> Word8 -> Word32
-                  {-# INLINE acc #-}
 
 {-# INLINE encodeChunk #-}
 encodeChunk :: SHA256 -> ByteString -> SHA256
 encodeChunk hv@(SHA256 a b c d e f g h) bs = SHA256 (a+a') (b+b') (c+c') (d+d') (e+e') (f+f') (g+g') (h+h')
-  where !r = round2 (fromBS bs)
-        (SHA256 a' b' c' d' e' f' g' h') = foldl' compression hv (zip (elems r) initKs)
+  where
+    SHA256 a' b' c' d' e' f' g' h' = foldl' sha256BlockUpdate hv (zipWith (+) (elems (prepareBlock bs)) initKs)
 
 {-# NOINLINE sha256Hash #-}
 sha256Hash :: LBS.ByteString -> SHA256
