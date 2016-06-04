@@ -18,6 +18,7 @@ library
   exposed-modules:     Crypto.Hash
                      , Crypto.Hash.SHA256
                      , Crypto.Hash.SHA512
+                     , Crypto.Hash.ADT
   build-depends:       QuickCheck >= 2.8.1
                      , array >= 0.5.1.0
                      , base >= 4.7 && < 5

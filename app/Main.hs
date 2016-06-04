@@ -5,4 +5,4 @@ import           Data.ByteString (ByteString)
 import           Crypto.Hash
 
 main :: IO ()
-main = LBS.getContents >>= \_ -> return ()
+main = LBS.getContents >>= print . (hashLazy :: LBS.ByteString -> SHA256)

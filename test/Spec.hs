@@ -20,12 +20,12 @@ instance Arbitrary BoxedLBS where
     return $! BoxedLBS (LBS.pack g)
 
 prop_SHA256HashLazyEqualsHashStrict (BoxedLBS lbs) = lhs == rhs
-  where lhs = sha256Hash lbs
-        rhs = sha256Final . foldl sha256Update sha256Init . LBS.toChunks $ lbs
+  where lhs = hashLazy lbs :: Digest SHA256
+        rhs = hashFinal . foldl hashUpdate hashInit . LBS.toChunks $ lbs
 
 prop_SHA224HashLazyEqualsHashStrict (BoxedLBS lbs) = lhs == rhs
-  where lhs = sha224Hash lbs
-        rhs = sha224Final . foldl sha224Update sha224Init . LBS.toChunks $ lbs
+  where lhs = hashLazy lbs :: Digest SHA224
+        rhs = hashFinal . foldl hashUpdate hashInit . LBS.toChunks $ lbs
 
 return []
 runTests = $quickCheckAll

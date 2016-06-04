@@ -5,25 +5,27 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Crypto.Hash.ADT (
-  HasHash(..)
+    Context(..)
+  , HasHash(..)
+  , Digest (..)
   ) where
 
-import qualified Data.ByteString.Lazy as LBS
 import           Data.ByteString (ByteString)
-import           Data.Monoid
-import           Data.List(foldl')
+import           Data.Int
 
-class HasHash a c d where
-  type HashCtx a c
-  type HashDigest a d
-  hashInit :: HashCtx a c
-  hashUpdate :: HashCtx a c -> ByteString -> HashCtx a c
-  hashFinal :: HashCtx a c -> HashDigest a d
+data Context a = Context {
+      ctxTotalBytesRead :: {-# UNPACK #-} !Int64
+    , ctxBufferRead     :: {-# UNPACK #-} !Int
+    , ctxBuffer         :: {-# UNPACK #-} !ByteString
+    , ctxHashValueAcc   :: !a
+    } deriving Show
 
-{-
-hash :: (HasHash a c d) => ByteString -> HashDigest a d
-hash = hashFinal . hashUpdate hashInit
+newtype Digest a = Digest String deriving Show
 
-hashLazy :: (HasHash a c d) => LBS.ByteString -> HashDigest a d
-hashLazy = hashFinal . foldl' (hashUpdate hashInit) . LBS.toChunks
--}
+class HasHash a where
+    type HashAlg a
+    hashBlockSize :: a -> Int
+    hashDigestSize :: a -> Int
+    hashInit   :: Context (HashAlg a)
+    hashUpdate :: Context (HashAlg a) -> ByteString -> Context (HashAlg a)
+    hashFinal  :: Context (HashAlg a) -> a

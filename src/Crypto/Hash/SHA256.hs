@@ -1,15 +1,12 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Crypto.Hash.SHA256
     (
       SHA256
     , SHA224
-    , SHA256Ctx
-    , SHA224Ctx
     ) where
 
 import qualified Data.ByteString as B
@@ -58,6 +55,8 @@ encodeInt64Helper x_ = [w7, w6, w5, w4, w3, w2, w1, w0]
         w0 = fromIntegral $ (x `shiftR`  0) .&. 0xff
 
 encodeInt64 = B.pack . encodeInt64Helper
+
+sha256BlockSize = 64
 
 lastChunk :: Int64 -> ByteString -> [ByteString]
 lastChunk msglen s
@@ -167,53 +166,48 @@ encodeChunk hv@(SHA256 a b c d e f g h) bs = SHA256 (a+a') (b+b') (c+c') (d+d') 
 sha256Hash :: LBS.ByteString -> SHA256
 sha256Hash = sha256Final . LBS.foldlChunks sha256Update sha256Init
 
-data SHA256Ctx = SHA256Ctx {
-    totalBytesRead     :: {-# UNPACK #-} !Int64
-  , leftOverSize       :: {-# UNPACK #-} !Int
-  , leftOver           :: {-# UNPACK #-} !ByteString
-  , hashValue          :: {-# UNPACK #-} !SHA256
-  } deriving Show
-
-sha256Init :: SHA256Ctx
-sha256Init = SHA256Ctx 0 0 B.empty initHash
+sha256Init :: Context SHA256
+sha256Init = Context 0 0 B.empty initHash
 
 {-# NOINLINE sha256Update #-}
-sha256Update :: SHA256Ctx -> ByteString -> SHA256Ctx
-sha256Update ctx@(SHA256Ctx n k w hv) s
+sha256Update :: Context SHA256 -> ByteString -> Context SHA256
+sha256Update ctx@(Context n k w hv) s
   | B.null s               = ctx
-  | sizeRead  < sizeToRead = SHA256Ctx (n + fromIntegral sizeRead) (k + sizeRead) (w <> s1) hv
-  | sizeRead >= sizeToRead = sha256Update (SHA256Ctx (n + fromIntegral sizeToRead) 0 mempty (encodeChunk hv (w <> s1))) s'
+  | sizeRead  < sizeToRead = Context (n + fromIntegral sizeRead) (k + sizeRead) (w <> s1) hv
+  | sizeRead >= sizeToRead = sha256Update (Context (n + fromIntegral sizeToRead) 0 mempty (encodeChunk hv (w <> s1))) s'
   where
-    !sizeToRead  = 64 - k
+    !sizeToRead  = sha256BlockSize - k
     (!s1, !s')   = B.splitAt sizeToRead s
     !sizeRead    = B.length s1
 
 {-# NOINLINE sha256Final #-}
-sha256Final :: SHA256Ctx -> SHA256
-sha256Final ctx@(SHA256Ctx n k w hv) = foldl' encodeChunk hv (lastChunk n w)
-
-type SHA224Ctx = SHA256Ctx
+sha256Final :: Context SHA256 -> SHA256
+sha256Final ctx@(Context n k w hv) = foldl' encodeChunk hv (lastChunk n w)
 
 fromSHA256 (SHA256 a b c d e f g _) = SHA224 a b c d e f g
 
-sha224Init   = SHA256Ctx 0 0 B.empty initHash224
+sha224Init :: Context SHA256
+sha224Init   = Context 0 0 B.empty initHash224
 sha224Update = sha256Update
-sha224Final  = fromSHA256 . sha256Final
+sha224Final :: Context SHA256 -> SHA224
+sha224Final = fromSHA256 . sha256Final
 
 {-# NOINLINE sha224Hash #-}
 sha224Hash :: LBS.ByteString -> SHA224
 sha224Hash = sha224Final . LBS.foldlChunks sha224Update sha224Init
 
-instance HasHash SHA256 SHA256Ctx SHA256 where
-  type HashCtx SHA256 SHA256Ctx = SHA256Ctx
-  type HashDigest SHA256 SHA256 = SHA256
+instance HasHash SHA256 where
+  type HashAlg SHA256 = SHA256
+  hashBlockSize = const 64
+  hashDigestSize = const 64
   hashInit = sha256Init
   hashUpdate = sha256Update
   hashFinal = sha256Final
 
-instance HasHash SHA224 SHA224Ctx SHA224 where
-  type HashCtx SHA224 SHA224Ctx = SHA224Ctx
-  type HashDigest SHA224 SHA224 = SHA224
+instance HasHash SHA224 where
+  type HashAlg SHA224 = SHA256
+  hashBlockSize = const 64
+  hashDigestSize = const 56
   hashInit = sha224Init
   hashUpdate = sha224Update
   hashFinal = sha224Final

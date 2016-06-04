@@ -6,7 +6,6 @@
 module Crypto.Hash.SHA512
     (
       SHA512
-    , SHA512Ctx
     ) where
 
 import qualified Data.ByteString as B
@@ -175,34 +174,28 @@ encodeChunk hv@(SHA512 a b c d e f g h) bs = SHA512 (a+a') (b+b') (c+c') (d+d') 
 sha512Hash :: LBS.ByteString -> SHA512
 sha512Hash = sha512Final . LBS.foldlChunks sha512Update sha512Init
 
-data SHA512Ctx = SHA512Ctx {
-    totalBytesRead     :: {-# UNPACK #-} !Int64
-  , leftOverSize       :: {-# UNPACK #-} !Int
-  , leftOver           :: {-# UNPACK #-} !ByteString
-  , hashValue          :: {-# UNPACK #-} !SHA512
-  } deriving Show
-
-sha512Init :: SHA512Ctx
-sha512Init = SHA512Ctx 0 0 B.empty initHash
+sha512Init :: Context SHA512
+sha512Init = Context 0 0 B.empty initHash
 
 {-# NOINLINE sha512Update #-}
-sha512Update :: SHA512Ctx -> ByteString -> SHA512Ctx
-sha512Update ctx@(SHA512Ctx n k w hv) s
+sha512Update :: Context SHA512 -> ByteString -> Context SHA512
+sha512Update ctx@(Context n k w hv) s
   | B.null s               = ctx
-  | sizeRead  < sizeToRead = SHA512Ctx (n + fromIntegral sizeRead) (k + sizeRead) (w <> s1) hv
-  | sizeRead >= sizeToRead = sha512Update (SHA512Ctx (n + fromIntegral sizeToRead) 0 mempty (encodeChunk hv (w <> s1))) s'
+  | sizeRead  < sizeToRead = Context (n + fromIntegral sizeRead) (k + sizeRead) (w <> s1) hv
+  | sizeRead >= sizeToRead = sha512Update (Context (n + fromIntegral sizeToRead) 0 mempty (encodeChunk hv (w <> s1))) s'
   where
     !sizeToRead  = sha512ChunkSize - k
     (!s1, !s')   = B.splitAt sizeToRead s
     !sizeRead    = B.length s1
 
 {-# NOINLINE sha512Final #-}
-sha512Final :: SHA512Ctx -> SHA512
-sha512Final ctx@(SHA512Ctx n k w hv) = foldl' encodeChunk hv (lastChunk n w)
+sha512Final :: Context SHA512 -> SHA512
+sha512Final ctx@(Context n k w hv) = foldl' encodeChunk hv (lastChunk n w)
 
-instance HasHash SHA512 SHA512Ctx SHA512 where
-  type HashCtx SHA512 SHA512Ctx = SHA512Ctx
-  type HashDigest SHA512 SHA512 = SHA512
+instance HasHash SHA512 where
+  type HashAlg SHA512 = SHA512
+  hashBlockSize = const 128
+  hashDigestSize = const 128
   hashInit = sha512Init
   hashUpdate = sha512Update
   hashFinal = sha512Final
