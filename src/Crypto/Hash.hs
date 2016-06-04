@@ -1,16 +1,19 @@
+{-# LANGUAGE TypeFamilies #-}
 module Crypto.Hash (
-    SHA256
+    HasHash(..)
+  , SHA256
+  , SHA256Ctx    
   , SHA224
-  , SHA256Ctx
-  , SHA224Ctx
-  , sha256Hash
-  , sha256Init
-  , sha256Update
-  , sha256Final
-  , sha224Hash
-  , sha224Init
-  , sha224Update
-  , sha224Final
+  , SHA224Ctx    
+  , SHA512
+  , SHA512Ctx    
   ) where
 
+import Data.ByteString (ByteString)
+
+import Crypto.Hash.ADT
+
 import Crypto.Hash.SHA256
+import Crypto.Hash.SHA512
+
+

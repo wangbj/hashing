@@ -1,4 +1,7 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE BangPatterns #-}
 
 module Crypto.Hash.SHA256
@@ -7,14 +10,6 @@ module Crypto.Hash.SHA256
     , SHA224
     , SHA256Ctx
     , SHA224Ctx
-    , sha256Hash
-    , sha256Init
-    , sha256Update
-    , sha256Final
-    , sha224Hash
-    , sha224Init
-    , sha224Update
-    , sha224Final
     ) where
 
 import qualified Data.ByteString as B
@@ -31,6 +26,8 @@ import           Data.Array.Unboxed
 import           Data.Array.Unsafe
 import           Data.Array.ST
 import           Data.List(foldl')
+
+import           Crypto.Hash.ADT
 
 initHs :: [Word32]
 initHs = [
@@ -206,3 +203,17 @@ sha224Final  = fromSHA256 . sha256Final
 {-# NOINLINE sha224Hash #-}
 sha224Hash :: LBS.ByteString -> SHA224
 sha224Hash = sha224Final . LBS.foldlChunks sha224Update sha224Init
+
+instance HasHash SHA256 SHA256Ctx SHA256 where
+  type HashCtx SHA256 SHA256Ctx = SHA256Ctx
+  type HashDigest SHA256 SHA256 = SHA256
+  hashInit = sha256Init
+  hashUpdate = sha256Update
+  hashFinal = sha256Final
+
+instance HasHash SHA224 SHA224Ctx SHA224 where
+  type HashCtx SHA224 SHA224Ctx = SHA224Ctx
+  type HashDigest SHA224 SHA224 = SHA224
+  hashInit = sha224Init
+  hashUpdate = sha224Update
+  hashFinal = sha224Final
