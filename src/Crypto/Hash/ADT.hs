@@ -17,8 +17,8 @@ data Context a = Context {
       ctxTotalBytesRead :: {-# UNPACK #-} !Int64
     , ctxBufferRead     :: {-# UNPACK #-} !Int
     , ctxBuffer         :: {-# UNPACK #-} !ByteString
-    , ctxHashValueAcc   :: !a
-    } deriving Show
+    , ctxHashValueAcc   :: {-# UNPACK #-} !a
+    }
 
 instance Functor Context where
   fmap f (Context t r b v) = Context t r b (f v)

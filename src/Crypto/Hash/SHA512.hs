@@ -178,6 +178,7 @@ prepareBlock s = runST $ do
         let !s0 = mkS00 x2
             !s1 = mkS01 x4
         in writeArray iou i (x1 + s0 + x3 + s1)
+      {-# INLINE go #-}
   mapM_ go [16..79]
   unsafeFreeze iou
 

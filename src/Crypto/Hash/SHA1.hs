@@ -21,7 +21,7 @@ import           Data.Array.Unboxed
 import           Data.Array.Unsafe
 import           Data.Array.ST
 import           Data.List(foldl')
-import           Debug.Trace
+
 import           Crypto.Hash.ADT
 
 encodeInt64Helper :: Int64 -> [Word8]
@@ -66,18 +66,35 @@ instance Show SHA1 where
   show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
     where toList (SHA1 a b c d e) = a:b:c:d:[e]
 
-sha1BlockUpdate :: SHA1 -> UArray Int Word32 -> SHA1
+sha1BlockUpdate :: SHA1 -> UArray Int Word64 -> SHA1
 sha1BlockUpdate hv = foldl' acc hv . assocs
-  where acc (SHA1 a b c d e) !(!i, !w) = SHA1 temp a (b `rotateL` 30) c d
-          where fk i b c d
-                  | i < 20 = ( (b .&. c) .|. ( (complement b) .&. d), 0x5a827999)
-                  | i < 40 = ( (b `xor` c `xor` d), 0x6ed9eba1)
-                  | i < 60 = ( ( (b .&. c) .|. (b .&. d) .|. (c .&. d) ), 0x8f1bbcdc)
-                  | i < 80 = ( (b `xor` c `xor` d), 0xca62c1d6)
-                fk :: Int -> Word32 -> Word32 -> Word32 -> (Word32, Word32)
-                {-# INLINE fk #-}
-                (!f, !k)   = fk i b c d
-                !temp      = (a `rotateL` 5) + f + e + k + w
+  where acc (SHA1 a b c d e) (!i, !w) = SHA1 temp2 temp1 (a `rotateL` 30) (b `rotateL` 30) c
+          where getK i
+                  | i < 10 = 0x5a827999
+                  | i < 20 = 0x6ed9eba1
+                  | i < 30 = 0x8f1bbcdc
+                  | i < 40 = 0xca62c1d6
+                getK :: Int -> Word32
+                {-# INLINE getK #-}
+                getF1 i
+                  | i < 10 = d `xor` (b .&. (c `xor` d))
+                  | i < 20 = b `xor` c `xor` d
+                  | i < 30 = (b .&. c) .|. (d .&. (b `xor` c))
+                  | i < 40 = b `xor` c `xor` d
+                getF1 :: Int -> Word32
+                {-# INLINE getF1 #-}
+                getF2 i
+                  | i < 10 = c `xor` (a .&. ((b `rotateL` 30) `xor` c))
+                  | i < 20 = a `xor` (b `rotateL` 30) `xor` c
+                  | i < 30 = (a .&. (b `rotateL` 30)) .|. (c .&. (a `xor` (b `rotateL` 30)))
+                  | i < 40 = a `xor` (b `rotateL` 30) `xor` c
+                getF2 :: Int -> Word32
+                {-# INLINE getF2 #-}
+                !f1        = getF1 i
+                !f2        = getF2 i
+                !k         = getK i
+                !temp1     = (a `rotateL` 5) + f1 + e + k + (fromIntegral (w `shiftR` 32))
+                !temp2     = (temp1 `rotateL` 5) + f2 + d + k + (fromIntegral (w .&. 0xffffffff))
         {-# INLINE acc #-}
 
 {-# INLINE readW64 #-}
@@ -87,9 +104,9 @@ readW64 = B.foldl' acc 0 . B.take 8
         acc :: Word64 -> Word8 -> Word64
         {-# INLINE acc #-}
 
-prepareBlock :: ByteString -> UArray Int Word32
+prepareBlock :: ByteString -> UArray Int Word64
 prepareBlock s = runST $ do
-  iou <- newArray (0, 79) 0 :: ST s (STUArray s Int Word32)
+  iou <- newArray (0, 39) 0 :: ST s (STUArray s Int Word64)
   let
     !w1 = readW64 s
     !w2 = readW64 (B.drop 8 s)
@@ -99,25 +116,26 @@ prepareBlock s = runST $ do
     !w6 = readW64 (B.drop 40 s)
     !w7 = readW64 (B.drop 48 s)
     !w8 = readW64 (B.drop 56 s)
-    write2 k x = writeArray iou (2*k)     (fromIntegral (x `shiftR` 32)) >>
-                 writeArray iou (1+2*k)   (fromIntegral (x .&. 0xffffffff))
-    {-# INLINE write2 #-}
-  write2 0 w1
-  write2 1 w2
-  write2 2 w3
-  write2 3 w4
-  write2 4 w5
-  write2 5 w6
-  write2 6 w7
-  write2 7 w8
-  let go i = readArray iou (i-16) >>= \x1 ->
-        readArray iou (i-14) >>= \x2 ->
-        readArray iou (i- 8) >>= \x3 ->
-        readArray iou (i- 3) >>= \x4 ->
-        let !wi = (x1 `xor` x2 `xor` x3 `xor` x4) `rotateL` 1
-        in writeArray iou i wi
-      {-# INLINE go #-}
-  mapM_ go [16..79]
+  writeArray iou 0 w1
+  writeArray iou 1 w2
+  writeArray iou 2 w3
+  writeArray iou 3 w4
+  writeArray iou 4 w5
+  writeArray iou 5 w6
+  writeArray iou 6 w7
+  writeArray iou 7 w8
+  let step1 i = readArray iou (i-8) >>= \x1 ->
+        readArray iou (i-7) >>= \x2 ->
+        readArray iou (i-4) >>= \x3 ->
+        readArray iou (i-2) >>= \x4 ->
+        readArray iou (i-1) >>= \x5 ->
+        let !wi = (x1 `xor` x2 `xor` x3 `xor` ( ((x4 .&. 0xffffffff) `shiftL` 32) .|. (x5 `shiftR` 32) )) `rotateL` 1
+            !i1 = (wi `shiftR` 32) .&. 0x1
+            !i2 = wi .&. 0x1
+            !wj = (wi .&. 0xfffffffefffffffe) .|. i1 .|. (i2 `shiftL` 32)
+        in writeArray iou i wj
+      {-# INLINE step1 #-}
+  mapM_ step1 [8..39]
   unsafeFreeze iou
 
 {-# INLINE encodeChunk #-}

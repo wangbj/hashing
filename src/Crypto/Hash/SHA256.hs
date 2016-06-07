@@ -156,7 +156,7 @@ prepareBlock s = runST $ do
         let !s0 = (x2 `rotateR`  7) `xor` (x2 `rotateR` 18) `xor` (x2 `shiftR`  3)
             !s1 = (x4 `rotateR` 17) `xor` (x4 `rotateR` 19) `xor` (x4 `shiftR` 10)
         in writeArray iou i (x1 + s0 + x3 + s1)
---      {-# INLINE go #-}
+      {-# INLINE go #-}
   mapM_ go [16..63]
   unsafeFreeze iou
 
