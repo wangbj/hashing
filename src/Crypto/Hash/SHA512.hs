@@ -6,6 +6,7 @@
 module Crypto.Hash.SHA512
     (
       SHA512
+    , SHA384
     ) where
 
 import qualified Data.ByteString as B
@@ -61,6 +62,7 @@ encodeInt64Helper x_ = [w7, w6, w5, w4, w3, w2, w1, w0]
         w1 = fromIntegral $ (x `shiftR`  8) .&. 0xff
         w0 = fromIntegral $ (x `shiftR`  0) .&. 0xff
 
+encodeInt64 :: Int64 -> ByteString
 encodeInt64 = B.pack . encodeInt64Helper
 
 sha512ChunkSize :: Int
@@ -86,6 +88,15 @@ data SHA512 = SHA512  {-# UNPACK #-} !Word64
               {-# UNPACK #-} !Word64
           deriving Eq
 
+data SHA384 = SHA384  {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+              {-# UNPACK #-} !Word64
+
 initHash :: SHA512
 initHash = fromList initHs
   where fromList (a:b:c:d:e:f:g:h:_) = SHA512 a b c d e f g h
@@ -98,6 +109,14 @@ initHash384 = fromList [0xcbbb9d5dc1059ed8, 0x629a292a367cd507, 0x9159015a3070dd
 instance Show SHA512 where
   show = LC.unpack . toLazyByteString . foldMap word64HexFixed . toList
     where toList (SHA512 a b c d e f g h) = a:b:c:d:e:f:g:[h]
+
+instance Show SHA384 where
+  show = LC.unpack . toLazyByteString . foldMap word64HexFixed . toList
+    where toList (SHA384 a b c d e f _ _) = a:b:c:d:e:[f]
+
+instance Eq SHA384 where
+  (SHA384 a1 b1 c1 d1 e1 f1 _ _) == (SHA384 a2 b2 c2 d2 e2 f2 _ _) =
+    a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2 && e1 == e2 && f1 == f2
 
 {-# INLINABLE sha512BlockUpdate #-}
 sha512BlockUpdate :: SHA512 -> Word64 -> SHA512
@@ -190,12 +209,30 @@ sha512Update ctx@(Context n k w hv) s
 
 {-# NOINLINE sha512Final #-}
 sha512Final :: Context SHA512 -> SHA512
-sha512Final ctx@(Context n k w hv) = foldl' encodeChunk hv (lastChunk n w)
+sha512Final (Context n _ w hv) = foldl' encodeChunk hv (lastChunk n w)
 
-instance HasHash SHA512 where
-  type HashAlg SHA512 = SHA512
+instance HashAlgorithm SHA512 where
   hashBlockSize = const 128
-  hashDigestSize = const 128
+  hashDigestSize = const 64
   hashInit = sha512Init
   hashUpdate = sha512Update
   hashFinal = sha512Final
+
+fromSHA384 :: SHA384 -> SHA512
+fromSHA512 :: SHA512 -> SHA384
+fromSHA384 (SHA384 a b c d e f g h) = SHA512 a b c d e f g h
+fromSHA512 (SHA512 a b c d e f g h) = SHA384 a b c d e f g h
+
+sha384Init :: Context SHA384
+sha384Init   = fmap fromSHA512 (Context 0 0 B.empty initHash384)
+sha384Update :: Context SHA384 -> ByteString -> Context SHA384
+sha384Update = fmap (fmap fromSHA512) . sha512Update . fmap fromSHA384
+sha384Final :: Context SHA384 -> SHA384
+sha384Final = fromSHA512 . sha512Final . fmap fromSHA384
+
+instance HashAlgorithm SHA384 where
+  hashBlockSize = const 128
+  hashDigestSize = const 48
+  hashInit = sha384Init
+  hashUpdate = sha384Update
+  hashFinal = sha384Final

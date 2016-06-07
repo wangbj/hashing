@@ -54,6 +54,7 @@ encodeInt64Helper x_ = [w7, w6, w5, w4, w3, w2, w1, w0]
         w1 = fromIntegral $ (x `shiftR`  8) .&. 0xff
         w0 = fromIntegral $ (x `shiftR`  0) .&. 0xff
 
+encodeInt64 :: Int64 -> ByteString
 encodeInt64 = B.pack . encodeInt64Helper
 
 sha256BlockSize = 64
@@ -85,7 +86,7 @@ data SHA224 = SHA224  {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
               {-# UNPACK #-} !Word32
-          deriving Eq
+              {-# UNPACK #-} !Word32              
 
 initHash :: SHA256
 initHash = fromList initHs
@@ -101,7 +102,12 @@ instance Show SHA256 where
 
 instance Show SHA224 where
   show = LC.unpack . toLazyByteString . foldMap word32HexFixed . toList
-    where toList (SHA224 a b c d e f g) = a:b:c:d:e:f:[g]
+    where toList (SHA224 a b c d e f g h) = a:b:c:d:e:f:[g]
+
+instance Eq SHA224 where
+  (SHA224 a1 b1 c1 d1 e1 f1 g1 _) == (SHA224 a2 b2 c2 d2 e2 f2 g2 _) =
+       a1 == a2 && b1 == b2 && c1 == c2 && d1 == d2
+    && e1 == e2 && f1 == f2 && g1 == g2
 
 {-# INLINABLE sha256BlockUpdate #-}
 sha256BlockUpdate :: SHA256 -> Word32 -> SHA256
@@ -182,32 +188,34 @@ sha256Update ctx@(Context n k w hv) s
 
 {-# NOINLINE sha256Final #-}
 sha256Final :: Context SHA256 -> SHA256
-sha256Final ctx@(Context n k w hv) = foldl' encodeChunk hv (lastChunk n w)
+sha256Final (Context n _ w hv) = foldl' encodeChunk hv (lastChunk n w)
 
-fromSHA256 (SHA256 a b c d e f g _) = SHA224 a b c d e f g
+fromSHA224 :: SHA224 -> SHA256
+fromSHA256 :: SHA256 -> SHA224
+fromSHA224 (SHA224 a b c d e f g h) = SHA256 a b c d e f g h
+fromSHA256 (SHA256 a b c d e f g h) = SHA224 a b c d e f g h
 
-sha224Init :: Context SHA256
-sha224Init   = Context 0 0 B.empty initHash224
-sha224Update = sha256Update
-sha224Final :: Context SHA256 -> SHA224
-sha224Final = fromSHA256 . sha256Final
+sha224Init :: Context SHA224
+sha224Init   = fmap fromSHA256 (Context 0 0 B.empty initHash224)
+sha224Update :: Context SHA224 -> ByteString -> Context SHA224
+sha224Update = fmap (fmap fromSHA256) . sha256Update . fmap fromSHA224
+sha224Final :: Context SHA224 -> SHA224
+sha224Final = fromSHA256 . sha256Final . fmap fromSHA224
 
-{-# NOINLINE sha224Hash #-}
+--{-# NOINLINE sha224Hash #-}
 sha224Hash :: LBS.ByteString -> SHA224
 sha224Hash = sha224Final . LBS.foldlChunks sha224Update sha224Init
 
-instance HasHash SHA256 where
-  type HashAlg SHA256 = SHA256
+instance HashAlgorithm SHA256 where
   hashBlockSize = const 64
-  hashDigestSize = const 64
+  hashDigestSize = const 32
   hashInit = sha256Init
   hashUpdate = sha256Update
   hashFinal = sha256Final
 
-instance HasHash SHA224 where
-  type HashAlg SHA224 = SHA256
+instance HashAlgorithm SHA224 where
   hashBlockSize = const 64
-  hashDigestSize = const 56
+  hashDigestSize = const 28
   hashInit = sha224Init
   hashUpdate = sha224Update
   hashFinal = sha224Final

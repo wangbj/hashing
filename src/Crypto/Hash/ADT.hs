@@ -6,7 +6,7 @@
 
 module Crypto.Hash.ADT (
     Context(..)
-  , HasHash(..)
+  , HashAlgorithm(..)
   , Digest (..)
   ) where
 
@@ -20,12 +20,14 @@ data Context a = Context {
     , ctxHashValueAcc   :: !a
     } deriving Show
 
+instance Functor Context where
+  fmap f (Context t r b v) = Context t r b (f v)
+
 newtype Digest a = Digest String deriving Show
 
-class HasHash a where
-    type HashAlg a
+class HashAlgorithm a where
     hashBlockSize :: a -> Int
     hashDigestSize :: a -> Int
-    hashInit   :: Context (HashAlg a)
-    hashUpdate :: Context (HashAlg a) -> ByteString -> Context (HashAlg a)
-    hashFinal  :: Context (HashAlg a) -> a
+    hashInit   :: Context a
+    hashUpdate :: Context a -> ByteString -> Context a
+    hashFinal  :: Context a -> a

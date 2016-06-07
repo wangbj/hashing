@@ -1,9 +1,8 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module Crypto.Hash (
-    HasHash(..)
+    HashAlgorithm(..)
   , SHA224    
   , SHA256
+  , SHA384
   , SHA512
   , hash
   , hashLazy
@@ -17,8 +16,8 @@ import Crypto.Hash.ADT
 import Crypto.Hash.SHA256
 import Crypto.Hash.SHA512
 
-hash :: (HasHash a) => ByteString -> a
+hash :: (HashAlgorithm a) => ByteString -> a
 hash = hashFinal . hashUpdate hashInit
 
-hashLazy :: (HasHash a) => LBS.ByteString -> a
+hashLazy :: (HashAlgorithm a) => LBS.ByteString -> a
 hashLazy = hashFinal . LBS.foldlChunks hashUpdate hashInit
