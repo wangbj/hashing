@@ -16,6 +16,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Crypto.Hash
+                     , Crypto.Hash.SHA1
                      , Crypto.Hash.SHA256
                      , Crypto.Hash.SHA512
                      , Crypto.Hash.ADT

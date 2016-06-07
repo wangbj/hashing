@@ -1,5 +1,6 @@
 module Crypto.Hash (
     HashAlgorithm(..)
+  , SHA1
   , SHA224    
   , SHA256
   , SHA384
@@ -13,6 +14,7 @@ import Data.ByteString (ByteString)
 
 import Crypto.Hash.ADT
 
+import Crypto.Hash.SHA1
 import Crypto.Hash.SHA256
 import Crypto.Hash.SHA512
 
