@@ -5,6 +5,7 @@ module Crypto.Hash (
   , SHA256
   , SHA384
   , SHA512
+  , MD5
   , hash
   , hashLazy
   ) where
@@ -17,6 +18,7 @@ import Crypto.Hash.ADT
 import Crypto.Hash.SHA1
 import Crypto.Hash.SHA256
 import Crypto.Hash.SHA512
+import Crypto.Hash.MD5
 
 hash :: (HashAlgorithm a) => ByteString -> a
 hash = hashFinal . hashUpdate hashInit
