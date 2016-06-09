@@ -51,21 +51,8 @@ data MD5 = MD5 {-# UNPACK #-} !Word32
            {-# UNPACK #-} !Word32
          deriving Eq           
 
-data Endian = LittleEndian | BigEndian
-
-{-# INLINE detectEndian #-}
-detectEndian = case readW32 (B.pack [0x12, 0x34, 0x56, 0x78]) .&. 0xff of
-  0x12 -> LittleEndian
-  0x78 -> BigEndian
-
-{-# INLINE hostToBE32 #-}
-hostToBE32 :: Word32 -> Word32
-hostToBE32 = case detectEndian of
-  LittleEndian -> byteSwap32
-  BigEndian    -> id
-
 instance Show MD5 where
-  show = LC.unpack . toLazyByteString . foldMap (word32HexFixed . hostToBE32) . toList
+  show = LC.unpack . toLazyByteString . foldMap (word32HexFixed . byteSwap32) . toList
     where toList (MD5 a b c d) = a:b:c:[d]
 
 initHash :: MD5
@@ -103,11 +90,8 @@ lastChunk msglen s
       where (!s1, !s2) = B.splitAt 64 bs
 
 readW32 :: ByteString -> Word32
-readW32 = fst . B.foldl' acc (0, 1)
-  where acc !(!x, !k) c
-          | k == 4 = (x', 1)
-          | k  < 4 = (x', (1+k))
-          where !x' = (fromIntegral c) `shiftL` (8 * (k-1)) + x
+readW32 = byteSwap32 . B.foldl' acc 0
+  where acc x c = x `shiftL` 8 + fromIntegral c
         {-# INLINE acc #-}
 {-# INLINE readW32 #-}        
 
