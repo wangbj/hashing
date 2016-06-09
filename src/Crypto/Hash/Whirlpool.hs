@@ -11,7 +11,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy.Char8 as LC
 import           Data.ByteString (ByteString)
 import           Data.ByteString.Builder
-import           Data.ByteString.Internal
 import           Data.Array.Unboxed
 import           Data.Int
 import           Data.Word
@@ -598,7 +597,7 @@ whirlpoolDigestSize = 64
 
 lastChunk :: Int64 -> ByteString -> [ByteString]
 lastChunk msglen s
-  | len < 32     = [s <> B.cons 0x80 (B.replicate (56 - len) 0x0)  <> encodedLen]
+  | len < 32     = [s <> B.cons 0x80 (B.replicate (55 - len) 0x0)  <> encodedLen]
   | len < 64 = (s <> B.singleton 0x80 <> (B.replicate (63-fromIntegral len) 0)) : [(B.replicate 56 0x0) <> encodedLen]
   where
     len        = B.length s

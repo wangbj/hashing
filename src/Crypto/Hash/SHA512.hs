@@ -49,7 +49,7 @@ initKs = [
   , 0x431d67c49c100d4c, 0x4cc5d4becb3e42b6, 0x597f299cfc657e2a, 0x5fcb6fab3ad6faec, 0x6c44198c4a475817  ]
 
 encodeInt64Helper :: Int64 -> [Word8]
-encodeInt64Helper x_ = [w7, w6, w5, w4, w3, w2, w1, w0]
+encodeInt64Helper x_ = (replicate 8 0) <> [w7, w6, w5, w4, w3, w2, w1, w0]
   where x = x_ * 8
         w7 = fromIntegral $ (x `shiftR` 56) .&. 0xff
         w6 = fromIntegral $ (x `shiftR` 48) .&. 0xff
@@ -68,8 +68,8 @@ sha512ChunkSize = 128  -- | 1024-bit
 
 lastChunk :: Int64 -> ByteString -> [ByteString]
 lastChunk msglen s
-  | len < 120  = [s <> B.cons 0x80 (B.replicate (119 - len) 0x0)  <> encodedLen]
-  | len < 248 = helper (s <> B.cons 0x80 (B.replicate (247 - len) 0x0) <> encodedLen)
+  | len  < 112  = [s <> B.cons 0x80 (B.replicate (111 - len) 0x0)  <> encodedLen]
+  | len >= 112 = helper (s <> B.cons 0x80 (B.replicate (239 - len) 0x0) <> encodedLen)
   where
     len        = B.length s
     encodedLen = encodeInt64 msglen
