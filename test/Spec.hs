@@ -14,7 +14,7 @@ import           Foreign.Ptr
 import qualified "cryptonite" Crypto.Hash as H
 
 data BoxedBS = BoxedBS {
-    unBoxedLBS :: ByteString
+    unBoxedBS :: ByteString
   } deriving Show
 
 instance Arbitrary BoxedBS where
@@ -23,7 +23,7 @@ instance Arbitrary BoxedBS where
     return $! BoxedBS (B.pack g)
 
 data BoxedLBS = BoxedLBS {
-    unBoxedBS :: LBS.ByteString
+    unBoxedLBS :: LBS.ByteString
   } deriving Show
 
 instance Arbitrary BoxedLBS where
@@ -76,6 +76,23 @@ prop_SHA512HashIsCorrect (BoxedLBS lbs) = show lhs == show rhs
 prop_SHA512HashIsCorrect (BoxedLBS lbs) = show lhs == show rhs
   where lhs = hashLazy lbs :: SHA512
         rhs = H.hashlazy lbs :: H.Digest H.SHA512
+
+data BoxedBSUnaligned = BoxedBSUnaligned {
+    unBoxedBSUnaligned :: ByteString
+  } deriving Show
+
+instance Arbitrary BoxedBSUnaligned where
+  arbitrary = do
+    g <- resize (2^10) (listOf arbitrary)
+    i <- elements [1, 3, 5, 7, 9, 11, 13, 17]
+    let bs = B.pack g
+    j <- choose (1, min 1 (B.length bs - i))
+    return $! BoxedBSUnaligned . B.take j . B.drop i $ bs
+
+prop_SHA512HashUnalignedIsCorrect :: BoxedBSUnaligned -> Bool
+prop_SHA512HashUnalignedIsCorrect (BoxedBSUnaligned bs) = show lhs == show rhs
+  where lhs = hash bs :: SHA512
+        rhs = H.hash bs :: H.Digest H.SHA512
 
 return []
 runTests = $quickCheckAll
