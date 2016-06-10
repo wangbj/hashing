@@ -1,9 +1,3 @@
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Crypto.Hash.ADT (
     Context(..)
   , HashAlgorithm(..)
@@ -25,6 +19,10 @@ instance Functor Context where
 
 newtype Digest a = Digest String deriving Show
 
+-- | Hash algorithm interface
+--
+-- provides classic init\/update\/final API. however,
+-- user should call higher level API such as hash or hashLazy.
 class HashAlgorithm a where
     hashBlockSize :: a -> Int
     hashDigestSize :: a -> Int

@@ -64,7 +64,7 @@ encodeInt64 :: Int64 -> ByteString
 encodeInt64 = B.pack . encodeInt64Helper
 
 sha512ChunkSize :: Int
-sha512ChunkSize = 128  -- | 1024-bit
+sha512ChunkSize = 128
 
 lastChunk :: Int64 -> ByteString -> [ByteString]
 lastChunk msglen s
