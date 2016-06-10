@@ -5,10 +5,10 @@ description:         Please see README.md
 homepage:            https://github.com/wangbj/hashing/blob/master/README.md
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
+author:              Baojun Wang
 maintainer:          wangbj@gmail.com
-copyright:           2016 Author Baojun Wang here
-category:            Crypto
+copyright:           2016 Baojun Wang
+category:            Cryptography
 build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10

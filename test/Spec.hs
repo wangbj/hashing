@@ -73,10 +73,6 @@ prop_SHA512HashIsCorrect (BoxedLBS lbs) = show lhs == show rhs
   where lhs = hashLazy lbs :: SHA512
         rhs = H.hashlazy lbs :: H.Digest H.SHA512
 
-prop_SHA512HashIsCorrect (BoxedLBS lbs) = show lhs == show rhs
-  where lhs = hashLazy lbs :: SHA512
-        rhs = H.hashlazy lbs :: H.Digest H.SHA512
-
 data BoxedBSUnaligned = BoxedBSUnaligned {
     unBoxedBSUnaligned :: ByteString
   } deriving Show
