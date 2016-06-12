@@ -1,8 +1,13 @@
 name:                hashing
 version:             0.1.0.0
 synopsis:            Initial project template from stack
-description:         Please see README.md
-homepage:            https://github.com/wangbj/hashing/blob/master/README.md
+description:         hashing is a pure haskell hash library, supported hash algorithm: SHA1/SHA224/SHA256/SHA384/SHA512
+                     MD5 and Whirlpool. It provides a simple interface ``hash`` and ``hashLazy`` to compute a hash value
+                     Based on the type signature.
+                     Performance wise it only has 1/5 - 1/15 of native C implementations, or ``cryptonite``.
+                     Compare to other pure hash libraries such as PureMD5/SHA, it provides a simpler interface, 
+                     implements more algorithms, and has less dependencies.
+homepage:            https://github.com/wangbj/hashing
 license:             BSD3
 license-file:        LICENSE
 author:              Baojun Wang
@@ -12,6 +17,7 @@ category:            Cryptography
 build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
+bug-reports:         https://github.com/wangbj/hashing/issues
 
 library
   hs-source-dirs:      src
@@ -22,12 +28,9 @@ library
                      , Crypto.Hash.SHA512
                      , Crypto.Hash.MD5
                      , Crypto.Hash.Whirlpool
-  build-depends:       QuickCheck >= 2.8.1
-                     , array >= 0.5.1.0
+  build-depends:       array >= 0.5.1.0
                      , base >= 4.7 && < 5
                      , bytestring >= 0.10.6.0
-                     , mtl >= 2.2.1
-                     , template-haskell >= 2.10.0.0
   default-language:    Haskell2010
 
 executable hashing-exe
@@ -40,7 +43,6 @@ executable hashing-exe
                      , bytestring >= 0.10.6.0
                      , hashing
                      , mtl >= 2.2.1
-                     , template-haskell >= 2.10.0.0
   default-language:    Haskell2010
 
 test-suite hashing-test
