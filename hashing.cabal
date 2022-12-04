@@ -30,7 +30,7 @@ library
                      , Crypto.Hash.Whirlpool
   build-depends:       array >= 0.5.1.0 && < 0.6
                      , base >= 4.7 && < 5
-                     , bytestring >= 0.10.6.0 && < 0.11
+                     , bytestring >= 0.10.6.0 && < 0.12
   default-language:    Haskell2010
 
 executable hashing-exe
