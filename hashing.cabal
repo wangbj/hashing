@@ -1,5 +1,5 @@
 name:                hashing
-version:             0.1.0.1
+version:             0.1.1.0
 synopsis:            A pure haskell library implements several hash algorithms.
 description:         hashing is a pure haskell hash library, supported hash algorithm: SHA1/SHA224/SHA256/SHA384/SHA512
                      MD5 and Whirlpool. It provides a simple interface ``hash`` and ``hashLazy`` to compute a hash value
